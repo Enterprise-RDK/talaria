@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"net"
 	"net/http"
 
 	"github.com/go-kit/log"
@@ -16,8 +17,20 @@ import (
 	"github.com/xmidt-org/webpa-common/v2/logging"
 )
 
+// RemoteIPMetadataKey is where the device metadata keeps the address the device connected from: the network address
+// of the connection (what the load balancer hands to talaria), not an address the device reports about itself.
+const RemoteIPMetadataKey = "remote-ip"
+
 func init() {
 	ksuid.SetRand(ksuid.FastRander)
+}
+
+// remoteIP is the address of the peer of a request without its port, or "" when there is none.
+func remoteIP(r *http.Request) string {
+	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		return host
+	}
+	return r.RemoteAddr // not host:port: a bare address, or nothing
 }
 
 // DeviceMetadataMiddleware is a device registration endpoint middleware
@@ -30,6 +43,9 @@ func DeviceMetadataMiddleware(getLogger func(ctx context.Context) log.Logger) al
 			logger := getLogger(ctx)
 			metadata := new(device.Metadata)
 			metadata.SetSessionID(ksuid.New().String())
+			if ip := remoteIP(r); ip != "" {
+				metadata.Store(RemoteIPMetadataKey, ip)
+			}
 
 			if auth, ok := bascule.FromContext(ctx); ok {
 				if tokenAttributes, ok := auth.Token.Attributes().(RawAttributes); ok {

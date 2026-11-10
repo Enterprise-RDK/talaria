@@ -51,6 +51,12 @@ func onlinePayload(t time.Time, d device.Interface) []byte {
 func newOnlineMessage(source string, d device.Interface) (string, *wrp.Message) {
 	eventType := statusEventType(d.ID(), "online")
 
+	// The address the device connected from goes with the online event only: what happens at a connection is decided from it
+	metadata := statusMetadata(d)
+	if ip, ok := d.Metadata().Load(RemoteIPMetadataKey).(string); ok && ip != "" {
+		metadata["/"+RemoteIPMetadataKey] = ip
+	}
+
 	return eventType, &wrp.Message{
 		Type:        wrp.SimpleEventMessageType,
 		Source:      source,
@@ -58,7 +64,7 @@ func newOnlineMessage(source string, d device.Interface) (string, *wrp.Message) 
 		ContentType: wrp.MimeTypeJson,
 		PartnerIDs:  []string{d.Metadata().PartnerIDClaim()},
 		SessionID:   d.Metadata().SessionID(),
-		Metadata:    statusMetadata(d),
+		Metadata:    metadata,
 		Payload:     onlinePayload(time.Now(), d),
 	}
 }
