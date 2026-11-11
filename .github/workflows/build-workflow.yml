@@ -1,0 +1,92 @@
+name: Build talaria
+
+# Talaria is deployed from the patch branch of v0.6.11 (the upstream v0.6.11 plus the fork patch), not from main, and the common
+# erdk-apps build workflow only makes a release build (with the event for the cloud repo) on main and release/** branches.
+# So this workflow does the same steps for this branch: build the image, push it to ECR, tag the commit, and tell
+# erdk-cloud-deployment (event talaria_update), where components-fanin-update.yml opens the pull request that sets the image tag.
+
+on:
+  push:
+    branches:
+      - patch-for-v0.6.11
+    paths-ignore:
+      - README.md
+      - CONTRIBUTING.md
+      - MAINTAINERS.md
+      - LICENSE
+      - NOTICE
+      - CHANGELOG.md
+      - .github/workflows/ci.yml
+      - .github/workflows/dependabot-approver.yml
+      - .github/workflows/proj-xmidt-team.yml
+
+permissions:
+  contents: write
+
+env:
+  ECR: 940319133372.dkr.ecr.us-west-2.amazonaws.com
+  REGION: us-west-2
+  AWS_ACCESS_KEY_ID: ${{ secrets.ON_PREM_RUNNER_AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.ON_PREM_RUNNER_AWS_SECRET_ACCESS_KEY }}
+
+jobs:
+  build:
+    runs-on: [self-hosted, gravity-on-prem]
+    outputs:
+      app_version: ${{ steps.generate_tag.outputs.app_version }}
+      jira_id: ${{ steps.get_jira_id.outputs.jira_id }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: talaria
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - name: Generate Tag
+        id: generate_tag
+        run: |
+          tag="$(date +%Y.%m.%d).${{ github.run_number }}-v0.6.11-patch"
+          echo "::notice ::Generated Tag: $tag"
+          echo "app_version=$tag" >> $GITHUB_OUTPUT
+
+      - name: Extract Jira Id from the last commit message
+        id: get_jira_id
+        working-directory: talaria
+        run: |
+          jira_id=$(git log -1 --pretty=%B | grep -o -E '[A-Z]+-[0-9]+' | head -n 1 || true)
+          if [ -z "$jira_id" ]; then jira_id="no-jira"; fi
+          echo "::notice ::Jira Id: $jira_id"
+          echo "jira_id=$jira_id" >> $GITHUB_OUTPUT
+
+      - name: Build docker image
+        working-directory: talaria
+        run: |
+          docker build \
+            --build-arg VERSION=${{ steps.generate_tag.outputs.app_version }} \
+            --build-arg GITCOMMIT=$(git rev-parse --short HEAD) \
+            --build-arg BUILDTIME=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
+            -t ${{ env.ECR }}/erdk/talaria:${{ steps.generate_tag.outputs.app_version }} -f Dockerfile .
+
+      - name: Check that the container starts
+        run: |
+          docker run --rm ${{ env.ECR }}/erdk/talaria:${{ steps.generate_tag.outputs.app_version }} /talaria --help
+
+      - name: Push docker image to ECR
+        run: |
+          aws ecr get-login-password --region ${{ env.REGION }} | docker login -u AWS --password-stdin ${{ env.ECR }}
+          docker push ${{ env.ECR }}/erdk/talaria:${{ steps.generate_tag.outputs.app_version }}
+
+      - name: Git Tag
+        working-directory: talaria
+        run: |
+          git tag ${{ steps.generate_tag.outputs.app_version }} && git push origin ${{ steps.generate_tag.outputs.app_version }}
+
+  notify_deployment:
+    runs-on: [self-hosted, gravity-on-prem]
+    needs: build
+    steps:
+      - name: Send notification to erdk-cloud env
+        run: |
+          curl -X POST -H "authorization: Bearer ${{ secrets.ERDK_PAT }}" -H "Accept: application/vnd.github.v3+json" \
+            -d '{"event_type": "talaria_update", "client_payload": {"multi_update": false, "package_version": "", "version": "${{ needs.build.outputs.app_version }}", "owner": "${{ github.actor }}", "jira_id": "${{ needs.build.outputs.jira_id }}", "release_branch": "${{ github.ref_name }}"}}' \
+            https://api.github.com/repos/Enterprise-RDK/erdk-cloud-deployment/dispatches
