@@ -17,9 +17,9 @@ import (
 	"github.com/xmidt-org/webpa-common/v2/logging"
 )
 
-// RemoteIPMetadataKey is where the device metadata keeps the address the device connected from: the network address
+// ConnectIPMetadataKey is where the device metadata keeps the address the device connected from: the network address
 // of the connection (what the load balancer hands to talaria), not an address the device reports about itself.
-const RemoteIPMetadataKey = "remote-ip"
+const ConnectIPMetadataKey = "connect-ip"
 
 func init() {
 	ksuid.SetRand(ksuid.FastRander)
@@ -44,7 +44,7 @@ func DeviceMetadataMiddleware(getLogger func(ctx context.Context) log.Logger) al
 			metadata := new(device.Metadata)
 			metadata.SetSessionID(ksuid.New().String())
 			if ip := remoteIP(r); ip != "" {
-				metadata.Store(RemoteIPMetadataKey, ip)
+				metadata.Store(ConnectIPMetadataKey, ip)
 			}
 
 			if auth, ok := bascule.FromContext(ctx); ok {

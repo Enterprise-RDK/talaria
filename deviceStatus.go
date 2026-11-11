@@ -53,8 +53,8 @@ func newOnlineMessage(source string, d device.Interface) (string, *wrp.Message) 
 
 	// The address the device connected from goes with the online event only: what happens at a connection is decided from it
 	metadata := statusMetadata(d)
-	if ip, ok := d.Metadata().Load(RemoteIPMetadataKey).(string); ok && ip != "" {
-		metadata["/"+RemoteIPMetadataKey] = ip
+	if ip, ok := d.Metadata().Load(ConnectIPMetadataKey).(string); ok && ip != "" {
+		metadata["/"+ConnectIPMetadataKey] = ip
 	}
 
 	return eventType, &wrp.Message{

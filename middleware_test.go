@@ -41,9 +41,9 @@ func TestDeviceMetadataMiddlewareKeepsTheAddressOfTheConnection(t *testing.T) {
 
 			if assert.NotNil(metadata) {
 				if tc.expected == "" {
-					assert.Nil(metadata.Load(RemoteIPMetadataKey))
+					assert.Nil(metadata.Load(ConnectIPMetadataKey))
 				} else {
-					assert.Equal(tc.expected, metadata.Load(RemoteIPMetadataKey))
+					assert.Equal(tc.expected, metadata.Load(ConnectIPMetadataKey))
 				}
 			}
 		})

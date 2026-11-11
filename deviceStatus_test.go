@@ -21,10 +21,10 @@ func TestOnlineMessageCarriesTheAddressOfTheConnection(t *testing.T) {
 	assert := assert.New(t)
 
 	metadata := new(device.Metadata)
-	metadata.Store(RemoteIPMetadataKey, "203.0.113.7")
+	metadata.Store(ConnectIPMetadataKey, "203.0.113.7")
 	_, message := newOnlineMessage("dns:talaria", deviceWithMetadata(metadata))
 
-	assert.Equal("203.0.113.7", message.Metadata["/remote-ip"])
+	assert.Equal("203.0.113.7", message.Metadata["/connect-ip"])
 }
 
 func TestOnlineMessageWithoutAnAddressHasNone(t *testing.T) {
@@ -32,7 +32,7 @@ func TestOnlineMessageWithoutAnAddressHasNone(t *testing.T) {
 
 	_, message := newOnlineMessage("dns:talaria", deviceWithMetadata(new(device.Metadata)))
 
-	_, found := message.Metadata["/remote-ip"]
+	_, found := message.Metadata["/connect-ip"]
 	assert.False(found)
 }
 
@@ -40,9 +40,9 @@ func TestTheAddressIsNotInTheStatusMetadataOfOtherEvents(t *testing.T) {
 	assert := assert.New(t)
 
 	metadata := new(device.Metadata)
-	metadata.Store(RemoteIPMetadataKey, "203.0.113.7")
+	metadata.Store(ConnectIPMetadataKey, "203.0.113.7")
 
 	// statusMetadata is what the offline event uses too: the address goes with the online event only
-	_, found := statusMetadata(deviceWithMetadata(metadata))["/remote-ip"]
+	_, found := statusMetadata(deviceWithMetadata(metadata))["/connect-ip"]
 	assert.False(found)
 }
